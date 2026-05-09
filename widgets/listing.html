@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap">
+<style>
+  /* KP brand tokens (lifted from kupujemprodajem.com CSS variables). */
+  :root {
+    color-scheme: light dark;
+    --kp-red: #ff1e00;          /* red-500-brand: prices, accents */
+    --kp-red-soft: #ffedeb;     /* red-100 */
+    --kp-navy: #003368;         /* navy-blue-700-brand: primary button (Poruke) */
+    --kp-navy-hover: #00283d;
+    --kp-blue-link: #007ec3;    /* blue-500-brand */
+    --kp-card: #ffffff;
+    --kp-card-2: #f4f6f8;       /* navy-blue-100: nested panels */
+    --kp-bg: #f0f0f0;           /* grayscale-100 */
+    --kp-border: #e0e7ef;       /* navy-blue-200 */
+    --kp-text: #171717;
+    --kp-muted: #666;
+    --kp-muted-soft: #999;
+    --kp-success: #1f7a4d;
+    --kp-success-bg: #c6ebe1;   /* bg-success-prom */
+    --kp-success-fg: #166;
+  }
+  :root.dark {
+    --kp-card: #1b1f23;         /* dark-neutral-700 */
+    --kp-card-2: #131619;       /* dark-neutral-800 */
+    --kp-bg: #0d0f11;
+    --kp-border: #282e34;       /* dark-neutral-600 */
+    --kp-text: #f0f0f0;
+    --kp-muted: #b3b3b3;
+    --kp-muted-soft: #6b7178;
+    --kp-red: #ff624d;
+    --kp-navy: #1f6feb;         /* shifts up to a brighter blue on dark */
+    --kp-navy-hover: #4ea0ff;
+    --kp-blue-link: #84caf0;
+    --kp-success: #4eb480;
+    --kp-success-bg: #14352a;
+    --kp-success-fg: #4eb480;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 8px 4px;
+    color: var(--kp-text);
+    font: 13px/1.45 "PT Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: transparent;
+  }
+  .listing {
+    background: var(--kp-card);
+    border: 1px solid var(--kp-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  /* ---- gallery ---- */
+  .gallery {
+    position: relative;
+    background: #000;
+    aspect-ratio: 4 / 3;
+    max-height: 320px;
+    overflow: hidden;
+  }
+  .gallery img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .gallery-empty {
+    background: var(--kp-card-2);
+    color: var(--kp-muted-soft);
+    font-size: 12px;
+    height: 160px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .open-link {
+    position: absolute;
+    top: 10px; right: 10px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    transition: background 0.1s ease;
+    cursor: pointer;
+    border: 0;
+    font-family: inherit;
+  }
+  .open-link:hover { background: rgba(0,0,0,0.8); }
+  .nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 18px;
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .nav:hover { background: rgba(0,0,0,0.8); }
+  .nav.prev { left: 10px; }
+  .nav.next { right: 10px; }
+  .counter {
+    position: absolute;
+    bottom: 10px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+  }
+  /* ---- body sections ---- */
+  .section { padding: 12px 14px; border-top: 1px solid var(--kp-border); }
+  .section.hero-meta { border-top: none; }
+  .title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--kp-text);
+    line-height: 1.25;
+    word-break: break-word;
+    margin-bottom: 6px;
+  }
+  .price-row { display: flex; align-items: baseline; gap: 8px; }
+  .price {
+    color: var(--kp-red);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.05;
+  }
+  .price-tag { font-size: 11px; color: var(--kp-muted); }
+  .stats {
+    display: flex;
+    gap: 14px;
+    color: var(--kp-muted);
+    font-size: 12px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .stat { display: inline-flex; align-items: center; gap: 5px; }
+  .stat svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .pills {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: var(--kp-card-2);
+    color: var(--kp-text);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .pill.success { background: var(--kp-success-bg); color: var(--kp-success-fg); }
+  .pill.success svg { width: 12px; height: 12px; }
+  .breadcrumb {
+    color: var(--kp-muted);
+    font-size: 11px;
+    text-transform: none;
+    margin-top: 8px;
+  }
+  /* car specs */
+  .specs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 6px 14px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--kp-card-2);
+    border-radius: 6px;
+  }
+  .spec { font-size: 12px; color: var(--kp-text); }
+  .spec b { display: block; color: var(--kp-muted); font-weight: 400; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 1px; }
+  /* description */
+  .section-title {
+    font-size: 12px;
+    color: var(--kp-text);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .desc {
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+    max-height: 240px;
+    overflow-y: auto;
+    color: var(--kp-text);
+    font-size: 12.5px;
+  }
+  /* seller card */
+  .seller-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .seller-name { font-weight: 700; color: var(--kp-text); font-size: 13px; }
+  .reviews { display: inline-flex; gap: 6px; font-size: 12px; }
+  .reviews .pos { color: var(--kp-success); font-weight: 700; }
+  .reviews .neg { color: var(--kp-red); font-weight: 700; }
+  .verified-pill {
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--kp-success-bg);
+    color: var(--kp-success-fg);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .seller-meta {
+    color: var(--kp-muted);
+    font-size: 11px;
+    display: flex;
+    gap: 4px 14px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  /* footer */
+  .footer { padding: 12px 14px; border-top: 1px solid var(--kp-border); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ad-id { color: var(--kp-muted-soft); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    background: var(--kp-navy);
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.1s ease;
+  }
+  .btn-primary:hover { background: var(--kp-navy-hover); }
+  .btn-primary svg { width: 14px; height: 14px; }
+  .similar-link {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--kp-blue-link);
+    font: inherit;
+    font-size: 12px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .similar-link:hover { text-decoration: underline; }
+</style>
+<body>
+  <div id="root">
+    <div class="listing"><div class="section"><div class="stats">Loading…</div></div></div>
+  </div>
+
+  <script>/*__EXT_APPS_BUNDLE__*/</script>
+  <script type="module">
+    const { App, applyHostStyleVariables } = globalThis.ExtApps;
+    const app = new App({ name: "kp-listing", version: "0.1.0" }, {}, { autoResize: true });
+    const root = document.getElementById("root");
+
+    function applyTheme() {
+      const ctx = app.getHostContext?.() ?? {};
+      document.documentElement.classList.toggle("dark", ctx.theme === "dark");
+      applyHostStyleVariables?.(ctx, { prefix: "mcp-host" });
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+      ));
+    }
+
+    const ICON_EYE = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M.5 8s2.5-5 7.5-5 7.5 5 7.5 5-2.5 5-7.5 5S.5 8 .5 8z"/><circle cx="8" cy="8" r="2.2"/></svg>`;
+    const ICON_HEART = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13.5s-5.5-3-5.5-7A2.8 2.8 0 0 1 8 5a2.8 2.8 0 0 1 5.5 1.5c0 4-5.5 7-5.5 7z"/></svg>`;
+    const ICON_CLOCK = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5"/></svg>`;
+    const ICON_PIN = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 14s5-4.5 5-8.5A5 5 0 1 0 3 5.5C3 9.5 8 14 8 14z"/><circle cx="8" cy="5.5" r="1.8"/></svg>`;
+    const ICON_CHECK = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3 3 7-7"/></svg>`;
+    const ICON_OPEN = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4"/><path d="M13 3l-7 7"/><path d="M11 9v3.5a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 2 12.5v-6A1.5 1.5 0 0 1 3.5 5H7"/></svg>`;
+
+    function carSpecs(l) {
+      const items = [
+        ["Year", l.carMakeYear],
+        ["Kilometers", l.carKm],
+        ["Engine cc", l.carCc],
+        ["Fuel", l.carFuelType],
+        ["Model", l.carModelDesc],
+      ].filter(([, v]) => v);
+      if (!items.length) return "";
+      return `<div class="specs">${items.map(([k, v]) =>
+        `<div class="spec"><b>${escapeHtml(k)}</b>${escapeHtml(v)}</div>`
+      ).join("")}</div>`;
+    }
+
+    function render(listing) {
+      if (!listing) {
+        root.innerHTML = `<div class="listing"><div class="section"><div class="stats">(no listing data)</div></div></div>`;
+        return;
+      }
+
+      const photos = Array.isArray(listing.photos) ? listing.photos.filter(Boolean) : [];
+      let idx = 0;
+
+      const galleryHtml = photos.length
+        ? `<div class="gallery">
+             <img id="hero" src="${escapeHtml(photos[0])}" alt="">
+             ${listing.adUrl ? `<button type="button" class="open-link" id="open-top" title="Open on KP">Open ↗</button>` : ""}
+             ${photos.length > 1 ? `
+               <button class="nav prev" type="button" aria-label="Previous">‹</button>
+               <button class="nav next" type="button" aria-label="Next">›</button>
+               <div class="counter" id="counter">1 / ${photos.length}</div>
+             ` : ""}
+           </div>`
+        : `<div class="gallery-empty">No photos</div>`;
+
+      const priceTag = listing.isPriceFixed
+        ? `<span class="price-tag">fixed price</span>`
+        : (listing.isExchange ? `<span class="price-tag">exchange</span>` : "");
+
+      const verifiedPill = (listing.user?.hasUserVerifiedBankAccount || listing.user?.hasCompanyVerifiedBankAccount)
+        ? `<span class="verified-pill">verified</span>` : "";
+
+      const conditionPill = listing.condition
+        ? `<span class="pill">${escapeHtml(listing.condition)}</span>` : "";
+      const availablePill = listing.isImmediateAvailable
+        ? `<span class="pill success">${ICON_CHECK} Dostupno odmah</span>` : "";
+      const deliveryPills = [
+        listing.isLocalPickupAvailable ? "Lično preuzimanje" : null,
+        listing.isCourierDeliveryAvailable ? "Dostava" : null,
+      ].filter(Boolean).map((t) => `<span class="pill">${escapeHtml(t)}</span>`).join("");
+
+      const breadcrumb = listing.categoryName || listing.groupName
+        ? `<div class="breadcrumb">${escapeHtml([listing.groupName, listing.categoryName].filter(Boolean).join(" › "))}</div>`
+        : "";
+
+      root.innerHTML = `
+        <div class="listing">
+          ${galleryHtml}
+
+          <div class="section hero-meta">
+            <div class="title">${escapeHtml(listing.name || "Untitled")}</div>
+            <div class="price-row">
+              <div class="price">${escapeHtml(listing.priceText || "—")}</div>
+              ${priceTag}
+            </div>
+            <div class="stats">
+              ${listing.location ? `<span class="stat">${ICON_PIN} ${escapeHtml(listing.location)}</span>` : ""}
+              ${listing.viewCount ? `<span class="stat">${ICON_EYE} ${escapeHtml(listing.viewCount)}</span>` : ""}
+              ${listing.favoriteCount ? `<span class="stat">${ICON_HEART} ${escapeHtml(String(listing.favoriteCount))}</span>` : ""}
+              ${listing.postedDesc ? `<span class="stat">${ICON_CLOCK} ${escapeHtml(listing.postedDesc)}</span>` : ""}
+            </div>
+            ${(conditionPill || availablePill || deliveryPills) ? `
+              <div class="pills">${conditionPill}${availablePill}${deliveryPills}</div>` : ""}
+            ${breadcrumb}
+          </div>
+
+          ${listing.isCar ? `<div class="section">${carSpecs(listing)}</div>` : ""}
+
+          ${listing.description ? `
+            <div class="section">
+              <div class="section-title">Description</div>
+              <div class="desc">${escapeHtml(listing.description)}</div>
+            </div>` : ""}
+
+          <div class="section">
+            <div class="seller-row">
+              <span class="seller-name">${escapeHtml(listing.user?.username || "Unknown")}</span>
+              <span class="reviews">
+                <span class="pos">+${escapeHtml(listing.user?.reviewsPositive || "0")}</span>
+                <span class="neg">-${escapeHtml(listing.user?.reviewsNegative || "0")}</span>
+              </span>
+              ${verifiedPill}
+            </div>
+            <div class="seller-meta">
+              ${listing.user?.userLocation ? `<span>${escapeHtml(listing.user.userLocation)}</span>` : ""}
+              ${listing.user?.created ? `<span>member since ${escapeHtml(listing.user.created)}</span>` : ""}
+              ${listing.user?.userActiveAdCount ? `<span>${escapeHtml(String(listing.user.userActiveAdCount))} active ads</span>` : ""}
+            </div>
+          </div>
+
+          <div class="footer">
+            <div>
+              ${listing.id ? `<span class="ad-id">ID #${escapeHtml(String(listing.id))}</span>` : ""}
+            </div>
+            <div style="display:flex; gap:12px; align-items:center;">
+              <button class="similar-link" type="button" id="similar">Find similar</button>
+              ${listing.adUrl ? `<button class="btn-primary" type="button" id="open">${ICON_OPEN} Open on KP</button>` : ""}
+            </div>
+          </div>
+        </div>
+      `;
+
+      const hero = document.getElementById("hero");
+      const counter = document.getElementById("counter");
+      function show(i) {
+        idx = (i + photos.length) % photos.length;
+        if (hero) hero.src = photos[idx];
+        if (counter) counter.textContent = `${idx + 1} / ${photos.length}`;
+      }
+      document.querySelector(".nav.prev")?.addEventListener("click", () => show(idx - 1));
+      document.querySelector(".nav.next")?.addEventListener("click", () => show(idx + 1));
+
+      const openHandler = () => { if (listing.adUrl) app.openLink({ url: listing.adUrl }); };
+      document.getElementById("open")?.addEventListener("click", openHandler);
+      document.getElementById("open-top")?.addEventListener("click", openHandler);
+
+      document.getElementById("similar")?.addEventListener("click", () => {
+        app.sendMessage({
+          role: "user",
+          content: [{
+            type: "text",
+            text: `Find similar listings on KP for: ${listing.name}${listing.priceNumber ? ` (around ${listing.priceText})` : ""}`,
+          }],
+        });
+      });
+    }
+
+    app.ontoolresult = ({ structuredContent, content }) => {
+      let payload = structuredContent;
+      if (!payload && content) {
+        for (const c of content) {
+          if (c?.type !== "text") continue;
+          try {
+            const j = JSON.parse(c.text);
+            if (j && (j.listing || j.adUrl || j.id)) { payload = j; break; }
+          } catch {}
+        }
+      }
+      render(payload?.listing || payload || null);
+    };
+
+    app.onhostcontextchanged = () => applyTheme();
+
+    await app.connect();
+    applyTheme();
+  </script>
+</body>
+</html>

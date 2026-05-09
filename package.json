@@ -1,0 +1,42 @@
+{
+  "name": "kp-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for kupujemprodajem.com — search KP listings and fetch listing details from Claude.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "kp-mcp": "dist/stdio.js",
+    "kp-mcp-stdio": "dist/stdio.js",
+    "kp-mcp-http": "dist/http.js"
+  },
+  "main": "dist/server.js",
+  "files": [
+    "dist",
+    "widgets",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start:stdio": "node dist/stdio.js",
+    "start:http": "node dist/http.js",
+    "dev:stdio": "tsx src/stdio.ts",
+    "dev:http": "tsx src/http.ts",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/stdio.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.1",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "express": "^4.21.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
