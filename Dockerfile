@@ -4,7 +4,9 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-RUN corepack enable
+# Pin pnpm explicitly — corepack's latest pnpm now requires Node 22, which
+# would break this Node 20 LTS image. Matches the version in package.json.
+RUN corepack enable && corepack prepare pnpm@10.32.1 --activate
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
