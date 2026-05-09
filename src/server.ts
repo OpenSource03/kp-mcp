@@ -390,15 +390,18 @@ export function createServer(): McpServer {
       }
 
       if (search) {
-        const needle = search.toLowerCase();
+        // Diacritic-insensitive: "graficke" should match "Grafičke", etc.
+        const fold = (s: string) =>
+          s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+        const needle = fold(search);
         const matchedCats: { id: number; name: string }[] = [];
         const matchedGroups: { categoryId: number; categoryName: string; id: number; name: string }[] = [];
         for (const [cid, entry] of Object.entries(CATEGORY_TREE)) {
-          if (entry.name.toLowerCase().includes(needle)) {
+          if (fold(entry.name).includes(needle)) {
             matchedCats.push({ id: Number(cid), name: entry.name });
           }
           for (const [gid, gname] of Object.entries(entry.groups)) {
-            if (gname.toLowerCase().includes(needle)) {
+            if (fold(gname).includes(needle)) {
               matchedGroups.push({
                 categoryId: Number(cid),
                 categoryName: entry.name,
