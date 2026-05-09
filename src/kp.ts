@@ -40,6 +40,7 @@ export function buildSearchUrl(params: KpSearchParams): string {
     for (const c of params.condition) q.append("condition", c);
   }
   if (params.categoryId !== undefined) q.set("categoryId", String(params.categoryId));
+  if (params.groupId !== undefined) q.set("groupId", String(params.groupId));
   if (params.orderBy) q.set("order", params.orderBy);
   if (params.page !== undefined) q.set("page", String(params.page));
   // KP defaults to title-only matching; "description" also searches body text.

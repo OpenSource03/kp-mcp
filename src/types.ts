@@ -88,7 +88,10 @@ export interface KpSearchParams {
   priceTo?: number;
   currency?: KpCurrency;
   condition?: KpCondition[];
+  /** Top-level category (e.g. 10 = "Kompjuteri | Desktop"). */
   categoryId?: number;
+  /** Subcategory / group within a category (e.g. 102 = "Grafičke kartice"). */
+  groupId?: number;
   orderBy?: KpOrderBy;
   page?: number;
   /** When 'description', KP also matches keywords against the listing body, not just the title. */

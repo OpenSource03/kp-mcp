@@ -9,6 +9,7 @@ import { z } from "zod";
 import { fetchListing, searchProducts, KP_CONDITIONS } from "./kp.js";
 import type { KpProduct } from "./types.js";
 import { WIDGET_URIS, widgets } from "./widgets.js";
+import { CATEGORY_TREE, categoryById } from "./categories.js";
 
 const SearchInput = {
   query: z
@@ -60,10 +61,17 @@ const SearchInput = {
     ),
   categoryId: z.number().int().positive().optional()
     .describe(
-      "KP category ID. **Almost always omit this.** KP returns 0 results for " +
-      "nonexistent IDs and the numbering isn't intuitive (graphics cards live " +
-      "under group 102 but the *category* is 10, etc.). Keyword filtering is " +
-      "more reliable.",
+      "Top-level KP category ID (e.g. 10 = 'Kompjuteri | Desktop', 2013 = " +
+      "'Automobili'). Use this to scope a search to a broad category. Always " +
+      "use a verified ID — wrong IDs return 0. Run `list_kp_categories` first " +
+      "if you don't know the ID.",
+    ),
+  groupId: z.number().int().positive().optional()
+    .describe(
+      "Subcategory / group ID inside a category (e.g. 102 = 'Grafičke kartice' " +
+      "inside category 10). Group alone is sufficient — you don't need to set " +
+      "categoryId too. Use this to narrow a search precisely (e.g. iPhones " +
+      "only, not all phones). Verify the ID via `list_kp_categories`.",
     ),
   orderBy: z
     .enum(["price", "price desc", "posted desc", "view_count desc", "relevance"])
@@ -131,36 +139,48 @@ export function createServer(): McpServer {
       instructions:
         "Search and inspect listings on kupujemprodajem.com (KP), Serbia's largest classifieds.\n" +
         "\n" +
+        "## Tools\n" +
+        "- `search_kp` — keyword + filter search, returns up to ~30 listings.\n" +
+        "- `fetch_listing` — full detail for one ad (specs, photos, seller).\n" +
+        "- `list_kp_categories` — taxonomy lookup for `categoryId`/`groupId`.\n" +
+        "\n" +
         "## Workflow\n" +
-        "1. **Search broadly first.** Start with the most distinctive 1–3 words " +
+        "1. **If the user's request fits a clear KP category** (cars, phones, " +
+        "  graphics cards, real estate, appliances, fashion): call " +
+        "  `list_kp_categories` with `search` set to the category name (in " +
+        "  English or Serbian — both substrings work) to find the right " +
+        "  `categoryId` or `groupId`. Narrowing by group beats keyword filtering " +
+        "  every time — it eliminates parts/accessories that contaminate " +
+        "  keyword searches.\n" +
+        "2. **Search broadly first.** Start with the most distinctive 1–3 words " +
         "  (model code, brand+model, key Serbian noun). Don't pad with category " +
         "  words — 'RTX 3090', not 'RTX 3090 graficka karta'.\n" +
-        "2. **Add filters second.** If you get junk (parts, accessories, " +
-        "  'Kupujem' wanted-to-buy ads): add `priceFrom` + `currency`. If you " +
-        "  get too many results: add `priceTo` or `condition`.\n" +
-        "3. **Sort thoughtfully.** Default `relevance` is best for browsing. " +
+        "3. **Add filters second.** If you still get junk (parts, accessories, " +
+        "  'Kupujem' wanted-to-buy ads): add `priceFrom` + `currency`, or scope " +
+        "  to a `groupId`. If you get too many: add `priceTo` or `condition`.\n" +
+        "4. **Sort thoughtfully.** Default `relevance` is best for browsing. " +
         "  `price` ascending is great for hunting deals BUT requires a " +
-        "  `priceFrom` floor or you'll get 27€ water blocks at the top of " +
-        "  a GPU search.\n" +
-        "4. **`fetch_listing` is preferred** whenever the user cares about " +
+        "  `priceFrom` floor (or scoping by `groupId`) or you'll get 27€ water " +
+        "  blocks at the top of a GPU search.\n" +
+        "5. **`fetch_listing` is preferred** whenever the user cares about " +
         "  specifics not visible in search cards: full description, all photos, " +
         "  seller reputation/verification, exact storage/year/km/fuel for cars, " +
         "  delivery options. Always fetch before recommending a listing as 'the " +
         "  best deal'.\n" +
-        "5. **If a title-only search returns 0**, retry with " +
+        "6. **If a title-only search returns 0**, retry with " +
         "  `keywordsScope: 'description'` once — many sellers bundle multiple " +
         "  model names in the listing body.\n" +
         "\n" +
         "## What KP returns vs. doesn't\n" +
         "- Search results carry: title, price, location, image, posted date, " +
-        "  view count, condition, category. **No seller info** in search hits — " +
-        "  use `fetch_listing` for username/reviews/verification.\n" +
+        "  view count, condition, category, group. **No seller info** in search " +
+        "  hits — use `fetch_listing` for username/reviews/verification.\n" +
         "- Prices come in EUR or RSD; both can appear in the same result set. " +
         "  Always set `currency` when filtering by price.\n" +
         "- 'Kupujem' priceText means 'I'm buying this' (wanted-to-buy ad) — " +
-        "  filter these out via `priceFrom`.\n" +
+        "  filter these out via `priceFrom` or scope by `groupId`.\n" +
         "\n" +
-        "Both tools render interactive UI in hosts that support MCP Apps " +
+        "All tools render interactive UI in hosts that support MCP Apps " +
         "(claude.ai, Claude Desktop) and degrade to plain text elsewhere.",
     },
   );
@@ -211,7 +231,7 @@ export function createServer(): McpServer {
     },
     async (args) => {
       const limit = args.limit ?? 10;
-      const { query, priceFrom, priceTo, currency, condition, categoryId, orderBy, page, keywordsScope } = args;
+      const { query, priceFrom, priceTo, currency, condition, categoryId, groupId, orderBy, page, keywordsScope } = args;
       const { products, searchUrl } = await searchProducts({
         query,
         priceFrom,
@@ -219,6 +239,7 @@ export function createServer(): McpServer {
         currency,
         condition,
         categoryId,
+        groupId,
         orderBy,
         page,
         keywordsScope,
@@ -307,6 +328,121 @@ export function createServer(): McpServer {
       return {
         content: [{ type: "text", text }],
         structuredContent: { listing },
+      };
+    },
+  );
+
+  // -------- list_kp_categories --------
+  server.registerTool(
+    "list_kp_categories",
+    {
+      title: "List KP Categories",
+      description:
+        "Look up KP's category and group IDs (the taxonomy used by " +
+        "`search_kp`'s `categoryId` and `groupId` filters). KP has 88 " +
+        "top-level categories and ~1170 groups underneath them.\n" +
+        "\n" +
+        "Behavior:\n" +
+        "• No args → returns all 88 categories as `{id, name}` pairs.\n" +
+        "• `categoryId` → returns just that category's groups: " +
+        "  `{id, name, groups: [{id, name}, …]}`.\n" +
+        "• `search` (substring, case-insensitive) → fuzzy-finds matching " +
+        "  categories AND groups across the whole tree. Combine with no " +
+        "  `categoryId` to discover the right ID for a user query.\n" +
+        "\n" +
+        "Use this whenever the user's request fits a clear KP category " +
+        "(cars, phones, real estate, appliances, fashion, etc.) — narrowing " +
+        "via `groupId` produces dramatically better search hits than keyword " +
+        "matching alone.",
+      annotations: { title: "List KP Categories", readOnlyHint: true, openWorldHint: false },
+      inputSchema: {
+        categoryId: z.number().int().positive().optional()
+          .describe("Drill into a specific category and list its groups."),
+        search: z.string().min(1).optional()
+          .describe("Substring search across category and group names. Case-insensitive."),
+      },
+    },
+    async ({ categoryId, search }) => {
+      if (categoryId !== undefined) {
+        const entry = categoryById(categoryId);
+        if (!entry) {
+          return {
+            content: [{ type: "text", text: `No KP category with id ${categoryId}.` }],
+            structuredContent: { categoryId, found: false },
+          };
+        }
+        const groups = Object.entries(entry.groups).map(([id, name]) => ({
+          id: Number(id),
+          name,
+        }));
+        return {
+          content: [{
+            type: "text",
+            text: `Category ${categoryId} "${entry.name}" — ${groups.length} groups:\n` +
+              groups.map((g) => `  ${g.id}\t${g.name}`).join("\n"),
+          }],
+          structuredContent: {
+            categoryId: Number(categoryId),
+            name: entry.name,
+            groups,
+          },
+        };
+      }
+
+      if (search) {
+        const needle = search.toLowerCase();
+        const matchedCats: { id: number; name: string }[] = [];
+        const matchedGroups: { categoryId: number; categoryName: string; id: number; name: string }[] = [];
+        for (const [cid, entry] of Object.entries(CATEGORY_TREE)) {
+          if (entry.name.toLowerCase().includes(needle)) {
+            matchedCats.push({ id: Number(cid), name: entry.name });
+          }
+          for (const [gid, gname] of Object.entries(entry.groups)) {
+            if (gname.toLowerCase().includes(needle)) {
+              matchedGroups.push({
+                categoryId: Number(cid),
+                categoryName: entry.name,
+                id: Number(gid),
+                name: gname,
+              });
+            }
+          }
+        }
+        const lines: string[] = [];
+        if (matchedCats.length) {
+          lines.push("CATEGORIES:");
+          for (const c of matchedCats) lines.push(`  ${c.id}\t${c.name}`);
+        }
+        if (matchedGroups.length) {
+          lines.push("GROUPS:");
+          for (const g of matchedGroups) {
+            lines.push(`  groupId=${g.id}\t${g.name}  (in category ${g.categoryId} ${g.categoryName})`);
+          }
+        }
+        if (!lines.length) lines.push(`No matches for "${search}".`);
+        return {
+          content: [{ type: "text", text: lines.join("\n") }],
+          structuredContent: {
+            search,
+            categories: matchedCats,
+            groups: matchedGroups,
+          },
+        };
+      }
+
+      // No args: list all categories.
+      const categories = Object.entries(CATEGORY_TREE).map(([id, entry]) => ({
+        id: Number(id),
+        name: entry.name,
+        groupCount: Object.keys(entry.groups).length,
+      }));
+      return {
+        content: [{
+          type: "text",
+          text: `${categories.length} KP categories:\n` +
+            categories.map((c) => `  ${c.id}\t${c.name} (${c.groupCount} groups)`).join("\n"),
+        }],
+        structuredContent: { categories },
       };
     },
   );
