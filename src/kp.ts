@@ -13,7 +13,18 @@ const BROWSER_HEADERS: Record<string, string> = {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
   Accept:
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.5",
+  "Accept-Language": "en-US,en;q=0.7,sr;q=0.6",
+  // Richer browser fingerprint — KP's anti-bot is more lenient on requests
+  // that look like a real Chrome navigation.
+  "Sec-Ch-Ua":
+    '"Chromium";v="120", "Google Chrome";v="120", "Not?A_Brand";v="24"',
+  "Sec-Ch-Ua-Mobile": "?0",
+  "Sec-Ch-Ua-Platform": '"macOS"',
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
 };
 
 /** Build a KP search URL from structured params. */
@@ -435,20 +446,51 @@ async function fetchSearchOnce(searchUrl: string): Promise<{
   return { byId: getSearchById(nextData), adsIds: getAdsIds(nextData) };
 }
 
+/**
+ * On a cold container, KP often serves a stripped first page (no
+ * `initialReduxState.search.byId`) until a session cookie is established.
+ * Hit the homepage once to bootstrap that session before the first search.
+ * Idempotent — does nothing once the jar has any cookie.
+ */
+let warmupPromise: Promise<void> | null = null;
+async function ensureWarmedUp(): Promise<void> {
+  if (cookieJar.size > 0) return;
+  if (warmupPromise) return warmupPromise;
+  warmupPromise = (async () => {
+    try {
+      await fetchHtml(KP_ORIGIN + "/");
+    } catch {
+      // best effort — if it fails, normal fetch path still tries
+    } finally {
+      // Allow re-warmup if jar was cleared (e.g. by retry path).
+      warmupPromise = null;
+    }
+  })();
+  return warmupPromise;
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 export async function searchProducts(params: KpSearchParams): Promise<{
   products: KpProduct[];
   searchUrl: string;
 }> {
   const searchUrl = buildSearchUrl(params);
+  await ensureWarmedUp();
 
-  let { byId, adsIds } = await fetchSearchOnce(searchUrl);
-  // Cold-start mitigation: the first request from a fresh datacenter IP gets
-  // a stripped HTML without `initialReduxState.search.byId`. Sometimes a stale
-  // session cookie also poisons subsequent calls — clearing the jar before
-  // retry forces KP to mint a fresh session.
-  if (Object.keys(byId).length === 0) {
-    cookieJar.clear();
+  // Up to 4 attempts with backoff. KP's anti-bot lets some calls through
+  // immediately and stripes others; clearing the cookie jar between retries
+  // forces a fresh session.
+  let byId: UnknownRecord = {};
+  let adsIds: string[] = [];
+  const delays = [0, 400, 900, 1500];
+  for (let attempt = 0; attempt < delays.length; attempt++) {
+    if (delays[attempt]! > 0) {
+      cookieJar.clear();
+      await sleep(delays[attempt]!);
+    }
     ({ byId, adsIds } = await fetchSearchOnce(searchUrl));
+    if (Object.keys(byId).length > 0) break;
   }
 
   // Walk adsIds for ordering; fall back to byId iteration only if KP omitted
@@ -475,10 +517,12 @@ export async function fetchListing(url: string): Promise<KpListing> {
       `URL must be a kupujemprodajem.com listing; got: ${url}`,
     );
   }
+  await ensureWarmedUp();
   let adNode = await fetchAdNodeOnce(url);
-  // Same cold-start / stale-session mitigation as searchProducts.
-  if (adNode === undefined) {
+  const delays = [400, 900, 1500];
+  for (let attempt = 0; attempt < delays.length && adNode === undefined; attempt++) {
     cookieJar.clear();
+    await sleep(delays[attempt]!);
     adNode = await fetchAdNodeOnce(url);
   }
   if (adNode === undefined) {
