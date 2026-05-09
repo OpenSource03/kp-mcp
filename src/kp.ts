@@ -74,10 +74,16 @@ export async function fetchHtml(url: string): Promise<string> {
   if (cookie) headers["Cookie"] = cookie;
   const res = await fetch(url, { headers, redirect: "follow" });
   ingestSetCookie(res.headers);
+  const html = await res.text();
+  process.stderr.write(
+    `[kp-fetch] url=${url} status=${res.status} sentCookie=${cookie ? "y" : "n"} ` +
+    `htmlLen=${html.length} hasNextData=${html.includes('id="__NEXT_DATA__"')} ` +
+    `jarKeys=${[...cookieJar.keys()].join(",")} sample=${JSON.stringify(html.slice(0,160))}\n`,
+  );
   if (!res.ok) {
     throw new Error(`KP fetch failed: ${res.status} ${res.statusText} for ${url}`);
   }
-  return await res.text();
+  return html;
 }
 
 /**
