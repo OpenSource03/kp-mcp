@@ -386,6 +386,20 @@ function getSearchById(nextData: UnknownRecord): UnknownRecord {
   return isRecord(search.byId) ? search.byId : {};
 }
 
+/**
+ * Return ad IDs in the order KP applied (`adsIds` array). Iterating `byId`
+ * directly loses ordering: JS sorts integer-string keys numerically by
+ * insertion-order semantics, so a price-sorted response would come back as
+ * id-sorted. Walking `adsIds` preserves whatever sort the user asked for.
+ */
+function getAdsIds(nextData: UnknownRecord): string[] {
+  const state = getReduxState(nextData);
+  const search = isRecord(state.search) ? state.search : {};
+  const ids = search.adsIds;
+  if (!Array.isArray(ids)) return [];
+  return ids.map((v) => String(v));
+}
+
 /** Single-ad pages put the ad in `state.ad.byId` keyed by its numeric id. */
 function getAdDetail(nextData: UnknownRecord, url: string): unknown {
   const state = getReduxState(nextData);
@@ -412,10 +426,13 @@ function getAdDetail(nextData: UnknownRecord, url: string): unknown {
   return undefined;
 }
 
-async function fetchSearchByIdOnce(searchUrl: string): Promise<UnknownRecord> {
+async function fetchSearchOnce(searchUrl: string): Promise<{
+  byId: UnknownRecord;
+  adsIds: string[];
+}> {
   const html = await fetchHtml(searchUrl);
   const nextData = parseNextData(html);
-  return getSearchById(nextData);
+  return { byId: getSearchById(nextData), adsIds: getAdsIds(nextData) };
 }
 
 export async function searchProducts(params: KpSearchParams): Promise<{
@@ -424,19 +441,24 @@ export async function searchProducts(params: KpSearchParams): Promise<{
 }> {
   const searchUrl = buildSearchUrl(params);
 
-  let byId = await fetchSearchByIdOnce(searchUrl);
+  let { byId, adsIds } = await fetchSearchOnce(searchUrl);
   // Cold-start mitigation: the first request from a fresh datacenter IP gets
   // a stripped HTML without `initialReduxState.search.byId`. Sometimes a stale
   // session cookie also poisons subsequent calls — clearing the jar before
   // retry forces KP to mint a fresh session.
   if (Object.keys(byId).length === 0) {
     cookieJar.clear();
-    byId = await fetchSearchByIdOnce(searchUrl);
+    ({ byId, adsIds } = await fetchSearchOnce(searchUrl));
   }
 
-  const products: KpProduct[] = Object.entries(byId).map(([pid, raw]) =>
-    pickProduct(raw, pid),
-  );
+  // Walk adsIds for ordering; fall back to byId iteration only if KP omitted
+  // the array (shouldn't happen but keep robust).
+  const orderIds = adsIds.length > 0 ? adsIds : Object.keys(byId);
+  const products: KpProduct[] = [];
+  for (const id of orderIds) {
+    const raw = byId[id];
+    if (raw !== undefined) products.push(pickProduct(raw, id));
+  }
   await inlineProductImages(products);
   return { products, searchUrl };
 }

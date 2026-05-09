@@ -240,10 +240,15 @@
         ? `<div class="thumb-wrap"><img class="thumb" loading="lazy" src="${escapeHtml(p.image)}" alt=""></div>`
         : `<div class="thumb-wrap"><div class="thumb-empty">no photo</div></div>`;
 
-      const sellerName = escapeHtml(p.user?.username || "Unknown");
-      const reviews = `<span class="reviews">+${escapeHtml(p.user?.reviewsPositive || "0")}</span>`;
-      const verified = (p.user?.hasUserVerifiedBankAccount || p.user?.hasCompanyVerifiedBankAccount)
-        ? `<span class="verified" title="Verified bank account">✓</span>` : "";
+      // Search results don't carry seller info on KP — that's only populated on
+      // detail pages. Render the row only if we actually have a username.
+      const hasSeller = !!p.user?.username;
+      const sellerLine = hasSeller
+        ? `<div class="seller">${escapeHtml(p.user.username)} <span class="reviews">+${escapeHtml(p.user.reviewsPositive || "0")}</span>${
+            (p.user.hasUserVerifiedBankAccount || p.user.hasCompanyVerifiedBankAccount)
+              ? `<span class="verified" title="Verified bank account">✓</span>` : ""
+          }</div>`
+        : "";
 
       const priceTag = p.isPriceFixed ? `<div class="price-tag">fixed</div>`
         : (p.isExchange ? `<div class="price-tag">exchange</div>` : "");
@@ -257,7 +262,7 @@
             ${p.postedDesc ? `<span class="sep">·</span><span>${escapeHtml(p.postedDesc)}</span>` : ""}
             ${p.viewCount ? `<span class="sep">·</span><span>${escapeHtml(p.viewCount)} views</span>` : ""}
           </div>
-          <div class="seller">${sellerName} ${reviews}${verified}</div>
+          ${sellerLine}
         </div>
         <div class="right">
           <div>
