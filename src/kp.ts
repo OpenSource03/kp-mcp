@@ -291,6 +291,21 @@ export async function searchProducts(params: KpSearchParams): Promise<{
   const nextData = parseNextData(html);
   const byId = getSearchById(nextData);
 
+  // TEMP DIAG (remove once Railway zero-results bug is solved)
+  if (process.env.KP_DIAG === "1") {
+    const props = isRecord(nextData.props) ? nextData.props : {};
+    const irs = isRecord(props.initialReduxState) ? props.initialReduxState : {};
+    const search = isRecord(irs.search) ? irs.search : {};
+    process.stderr.write(
+      `[kp-diag] url=${searchUrl} htmlLen=${html.length} ` +
+      `topPropKeys=${JSON.stringify(Object.keys(props))} ` +
+      `irsSliceCount=${Object.keys(irs).length} ` +
+      `searchKeys=${JSON.stringify(Object.keys(search).slice(0, 8))} ` +
+      `byIdCount=${Object.keys(byId).length} ` +
+      `htmlSample=${JSON.stringify(html.slice(0, 240))}\n`,
+    );
+  }
+
   const products: KpProduct[] = Object.entries(byId).map(([pid, raw]) =>
     pickProduct(raw, pid),
   );
