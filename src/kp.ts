@@ -31,6 +31,8 @@ export function buildSearchUrl(params: KpSearchParams): string {
   if (params.categoryId !== undefined) q.set("categoryId", String(params.categoryId));
   if (params.orderBy) q.set("order", params.orderBy);
   if (params.page !== undefined) q.set("page", String(params.page));
+  // KP defaults to title-only matching; "description" also searches body text.
+  if (params.keywordsScope === "description") q.set("keywordsScope", "description");
 
   return url.toString();
 }

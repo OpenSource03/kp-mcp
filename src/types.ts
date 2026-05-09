@@ -80,6 +80,8 @@ export type KpOrderBy =
   | "view_count desc"
   | "relevance";
 
+export type KpKeywordsScope = "title" | "description";
+
 export interface KpSearchParams {
   query: string;
   priceFrom?: number;
@@ -89,4 +91,6 @@ export interface KpSearchParams {
   categoryId?: number;
   orderBy?: KpOrderBy;
   page?: number;
+  /** When 'description', KP also matches keywords against the listing body, not just the title. */
+  keywordsScope?: KpKeywordsScope;
 }

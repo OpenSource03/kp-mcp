@@ -44,6 +44,14 @@ const SearchInput = {
     ),
   page: z.number().int().positive().optional()
     .describe("1-based page number. KP returns ~25 results per page."),
+  keywordsScope: z.enum(["title", "description"]).optional()
+    .describe(
+      "Where to match `query` keywords. 'title' (default) matches only the " +
+      "listing title — fast and precise. 'description' also matches the body, " +
+      "which surfaces ads that bundle multiple brand/model names in their " +
+      "description (common on KP). If a title-only search returns 0 but the " +
+      "items plausibly exist, retry with 'description'.",
+    ),
   limit: z.number().int().positive().max(30).optional()
     .describe(
       "Cap on returned products (default 10). Each result inlines a thumbnail " +
@@ -105,7 +113,7 @@ export function createServer(): McpServer {
     },
     async (args) => {
       const limit = args.limit ?? 10;
-      const { query, priceFrom, priceTo, currency, condition, categoryId, orderBy, page } = args;
+      const { query, priceFrom, priceTo, currency, condition, categoryId, orderBy, page, keywordsScope } = args;
       const { products, searchUrl } = await searchProducts({
         query,
         priceFrom,
@@ -115,6 +123,7 @@ export function createServer(): McpServer {
         categoryId,
         orderBy,
         page,
+        keywordsScope,
       });
       const sliced = products.slice(0, limit);
       const payload = {
