@@ -14,17 +14,28 @@ const SearchInput = {
   query: z
     .string()
     .min(1)
-    .describe("Free-text search keywords, e.g. 'iphone 13' or 'volkswagen golf'"),
+    .describe(
+      "Free-text search keywords. KP does AND-matching across all words, so " +
+      "every keyword must appear in the listing. Prefer 2–3 specific words " +
+      "(e.g. 'iphone 13', 'rtx 3090', 'volkswagen golf'). Avoid stacking many " +
+      "brands or the search will return 0 — instead, run multiple narrower " +
+      "searches and combine the results.",
+    ),
   priceFrom: z.number().int().nonnegative().optional()
-    .describe("Minimum price (inclusive)."),
+    .describe("Minimum price (inclusive). Pair with `currency` so KP knows the unit."),
   priceTo: z.number().int().positive().optional()
-    .describe("Maximum price (inclusive)."),
+    .describe("Maximum price (inclusive). Pair with `currency`."),
   currency: z.enum(["eur", "rsd"]).optional()
     .describe("Currency the price filters are in. KP supports EUR or RSD."),
   condition: z.array(z.enum(KP_CONDITIONS)).optional()
     .describe("Filter by item condition. Multiple values are OR-combined."),
   categoryId: z.number().int().positive().optional()
-    .describe("KP category ID. Omit to search all categories."),
+    .describe(
+      "KP category ID. **Avoid passing this unless you have a verified ID** — " +
+      "KP returns 0 results for nonexistent IDs and the IDs aren't intuitive " +
+      "(e.g. graphics cards live under group 102, but the *category* is 10). " +
+      "Filter by keyword instead in almost all cases.",
+    ),
   orderBy: z
     .enum(["price", "price desc", "posted desc", "view_count desc", "relevance"])
     .optional()
