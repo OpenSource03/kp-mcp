@@ -409,8 +409,17 @@ function getAdDetail(nextData: UnknownRecord, url: string): unknown {
 
 async function fetchSearchByIdOnce(searchUrl: string): Promise<UnknownRecord> {
   const html = await fetchHtml(searchUrl);
-  const nextData = parseNextData(html);
-  return getSearchById(nextData);
+  const hasNextData = /<script[^>]*\bid="__NEXT_DATA__"/.test(html);
+  let nextData: UnknownRecord = {};
+  let parseErr: string | null = null;
+  try { nextData = parseNextData(html); } catch (e) { parseErr = String(e); }
+  const byId = getSearchById(nextData);
+  process.stderr.write(
+    `[kp-search] url=${searchUrl} htmlLen=${html.length} hasNextData=${hasNextData} ` +
+    `parseErr=${parseErr ?? "none"} byIdCount=${Object.keys(byId).length} ` +
+    `htmlFirst200=${JSON.stringify(html.slice(0, 200))}\n`,
+  );
+  return byId;
 }
 
 export async function searchProducts(params: KpSearchParams): Promise<{
