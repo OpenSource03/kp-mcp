@@ -230,7 +230,10 @@ function thumbnailUrl(fullUrl: string): string {
  * repeated fetches when the same listing shows up across queries.
  */
 const dataUrlCache = new Map<string, string>();
-const MAX_INLINE_BYTES = 60_000;
+// Cap each thumbnail conservatively. With `limit=10` (default), a search
+// response stays under ~250 KB total once base64 expansion (×1.33) is applied
+// — well within claude.ai's tool-result size budget.
+const MAX_INLINE_BYTES = 18_000;
 const INLINE_TIMEOUT_MS = 4_000;
 
 async function inlineImage(url: string): Promise<string> {

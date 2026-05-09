@@ -44,8 +44,12 @@ const SearchInput = {
     ),
   page: z.number().int().positive().optional()
     .describe("1-based page number. KP returns ~25 results per page."),
-  limit: z.number().int().positive().max(50).optional()
-    .describe("Cap on returned products (server-side slice). Default 20."),
+  limit: z.number().int().positive().max(30).optional()
+    .describe(
+      "Cap on returned products (default 10). Each result inlines a thumbnail " +
+      "as a data URL, so very large limits can blow the host's tool-result size " +
+      "budget. Stay ≤15 for embedded widgets; raise only if you don't need the cards.",
+    ),
 };
 
 const FetchListingInput = {
@@ -100,7 +104,7 @@ export function createServer(): McpServer {
       _meta: { ui: { resourceUri: WIDGET_URIS.search } },
     },
     async (args) => {
-      const limit = args.limit ?? 20;
+      const limit = args.limit ?? 10;
       const { query, priceFrom, priceTo, currency, condition, categoryId, orderBy, page } = args;
       const { products, searchUrl } = await searchProducts({
         query,
@@ -119,11 +123,11 @@ export function createServer(): McpServer {
         truncated: products.length > sliced.length,
         products: sliced,
       };
+      // Only the human-readable text in `content`; the widget reads
+      // `structuredContent` directly. Avoiding a duplicate JSON dump keeps the
+      // tool result well under claude.ai's per-call size cap.
       return {
-        content: [
-          { type: "text", text: summarizeSearch(sliced, searchUrl) },
-          { type: "text", text: JSON.stringify(payload) },
-        ],
+        content: [{ type: "text", text: summarizeSearch(sliced, searchUrl) }],
         structuredContent: payload,
       };
     },
@@ -177,13 +181,10 @@ export function createServer(): McpServer {
         `Seller: ${listing.user.username} (+${listing.user.reviewsPositive}/-${listing.user.reviewsNegative})\n` +
         `URL: ${listing.adUrl}\n\n` +
         `${listing.description}`;
-      const payload = { listing };
+      // Single text content — widget consumes structuredContent.
       return {
-        content: [
-          { type: "text", text },
-          { type: "text", text: JSON.stringify(payload) },
-        ],
-        structuredContent: payload,
+        content: [{ type: "text", text }],
+        structuredContent: { listing },
       };
     },
   );
