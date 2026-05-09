@@ -409,17 +409,8 @@ function getAdDetail(nextData: UnknownRecord, url: string): unknown {
 
 async function fetchSearchByIdOnce(searchUrl: string): Promise<UnknownRecord> {
   const html = await fetchHtml(searchUrl);
-  const hasNextData = /<script[^>]*\bid="__NEXT_DATA__"/.test(html);
-  let nextData: UnknownRecord = {};
-  let parseErr: string | null = null;
-  try { nextData = parseNextData(html); } catch (e) { parseErr = String(e); }
-  const byId = getSearchById(nextData);
-  process.stderr.write(
-    `[kp-search] url=${searchUrl} htmlLen=${html.length} hasNextData=${hasNextData} ` +
-    `parseErr=${parseErr ?? "none"} byIdCount=${Object.keys(byId).length} ` +
-    `htmlFirst200=${JSON.stringify(html.slice(0, 200))}\n`,
-  );
-  return byId;
+  const nextData = parseNextData(html);
+  return getSearchById(nextData);
 }
 
 export async function searchProducts(params: KpSearchParams): Promise<{
@@ -430,9 +421,11 @@ export async function searchProducts(params: KpSearchParams): Promise<{
 
   let byId = await fetchSearchByIdOnce(searchUrl);
   // Cold-start mitigation: the first request from a fresh datacenter IP gets
-  // a stripped HTML without `initialReduxState.search.byId`. The first response
-  // also sets the session cookie, so the retry now lands hydrated.
+  // a stripped HTML without `initialReduxState.search.byId`. Sometimes a stale
+  // session cookie also poisons subsequent calls — clearing the jar before
+  // retry forces KP to mint a fresh session.
   if (Object.keys(byId).length === 0) {
+    cookieJar.clear();
     byId = await fetchSearchByIdOnce(searchUrl);
   }
 
@@ -456,8 +449,9 @@ export async function fetchListing(url: string): Promise<KpListing> {
     );
   }
   let adNode = await fetchAdNodeOnce(url);
-  // Same cold-start mitigation as searchProducts (see cookie jar comment).
+  // Same cold-start / stale-session mitigation as searchProducts.
   if (adNode === undefined) {
+    cookieJar.clear();
     adNode = await fetchAdNodeOnce(url);
   }
   if (adNode === undefined) {
