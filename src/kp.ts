@@ -74,15 +74,6 @@ export async function fetchHtml(url: string): Promise<string> {
   if (cookie) headers["Cookie"] = cookie;
   const res = await fetch(url, { headers, redirect: "follow" });
   ingestSetCookie(res.headers);
-  if (process.env.KP_DIAG === "1") {
-    const getter = (res.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
-    const setCookies = typeof getter === "function" ? getter.call(res.headers) : [];
-    process.stderr.write(
-      `[kp-fetch] url=${url} status=${res.status} sentCookie=${cookie ? "yes" : "no"} ` +
-      `setCookieCount=${setCookies.length} jarKeys=${JSON.stringify([...cookieJar.keys()])} ` +
-      `setCookieFirst=${JSON.stringify(setCookies[0] ?? null)}\n`,
-    );
-  }
   if (!res.ok) {
     throw new Error(`KP fetch failed: ${res.status} ${res.statusText} for ${url}`);
   }
@@ -330,19 +321,7 @@ function getAdDetail(nextData: UnknownRecord, url: string): unknown {
 async function fetchSearchByIdOnce(searchUrl: string): Promise<UnknownRecord> {
   const html = await fetchHtml(searchUrl);
   const nextData = parseNextData(html);
-  const byId = getSearchById(nextData);
-  if (process.env.KP_DIAG === "1") {
-    const props = isRecord(nextData.props) ? nextData.props : {};
-    const irs = isRecord(props.initialReduxState) ? props.initialReduxState : {};
-    const search = isRecord(irs.search) ? irs.search : {};
-    process.stderr.write(
-      `[kp-parse] htmlLen=${html.length} irsKeys=${Object.keys(irs).length} ` +
-      `searchTotal=${JSON.stringify(search.total)} ` +
-      `adsIds=${Array.isArray(search.adsIds) ? (search.adsIds as unknown[]).length : "n/a"} ` +
-      `byIdCount=${Object.keys(byId).length}\n`,
-    );
-  }
-  return byId;
+  return getSearchById(nextData);
 }
 
 export async function searchProducts(params: KpSearchParams): Promise<{
