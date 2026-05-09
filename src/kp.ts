@@ -35,9 +35,45 @@ export function buildSearchUrl(params: KpSearchParams): string {
   return url.toString();
 }
 
-/** Fetch HTML using browser-like headers. Portable across Node, edge, Workers. */
+/**
+ * Process-wide cookie jar for kupujemprodajem.com.
+ *
+ * KP serves a *stripped* page (no `initialReduxState.search.byId`) on the very
+ * first request from a fresh connection / datacenter IP, and only hydrates the
+ * full server-rendered state once the request carries the `KUPUJEMPRODAJEM`
+ * session cookie that the first response sets. From a residential IP this is
+ * usually waived; from Railway's egress IP it bites every cold start.
+ *
+ * Keeping a shared jar across requests means:
+ *   1. Once any user has triggered one search, every subsequent search reuses
+ *      the warm cookie and gets full data on the first try.
+ *   2. The retry below only kicks in for the very first cold call.
+ */
+const cookieJar = new Map<string, string>();
+
+function cookieHeader(): string {
+  return Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+}
+
+function ingestSetCookie(headers: Headers): void {
+  const getter = (headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
+  const all = typeof getter === "function" ? getter.call(headers) : [];
+  for (const raw of all) {
+    const [pair] = raw.split(";");
+    if (!pair) continue;
+    const eq = pair.indexOf("=");
+    if (eq <= 0) continue;
+    cookieJar.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+  }
+}
+
+/** Fetch HTML using browser-like headers + a shared KP cookie jar. */
 export async function fetchHtml(url: string): Promise<string> {
-  const res = await fetch(url, { headers: BROWSER_HEADERS, redirect: "follow" });
+  const headers: Record<string, string> = { ...BROWSER_HEADERS };
+  const cookie = cookieHeader();
+  if (cookie) headers["Cookie"] = cookie;
+  const res = await fetch(url, { headers, redirect: "follow" });
+  ingestSetCookie(res.headers);
   if (!res.ok) {
     throw new Error(`KP fetch failed: ${res.status} ${res.statusText} for ${url}`);
   }
@@ -282,35 +318,36 @@ function getAdDetail(nextData: UnknownRecord, url: string): unknown {
   return undefined;
 }
 
+async function fetchSearchByIdOnce(searchUrl: string): Promise<UnknownRecord> {
+  const html = await fetchHtml(searchUrl);
+  const nextData = parseNextData(html);
+  return getSearchById(nextData);
+}
+
 export async function searchProducts(params: KpSearchParams): Promise<{
   products: KpProduct[];
   searchUrl: string;
 }> {
   const searchUrl = buildSearchUrl(params);
-  const html = await fetchHtml(searchUrl);
-  const nextData = parseNextData(html);
-  const byId = getSearchById(nextData);
 
-  // TEMP DIAG (remove once Railway zero-results bug is solved)
-  if (process.env.KP_DIAG === "1") {
-    const props = isRecord(nextData.props) ? nextData.props : {};
-    const irs = isRecord(props.initialReduxState) ? props.initialReduxState : {};
-    const search = isRecord(irs.search) ? irs.search : {};
-    process.stderr.write(
-      `[kp-diag] url=${searchUrl} htmlLen=${html.length} ` +
-      `topPropKeys=${JSON.stringify(Object.keys(props))} ` +
-      `irsSliceCount=${Object.keys(irs).length} ` +
-      `searchKeys=${JSON.stringify(Object.keys(search).slice(0, 8))} ` +
-      `byIdCount=${Object.keys(byId).length} ` +
-      `htmlSample=${JSON.stringify(html.slice(0, 240))}\n`,
-    );
+  let byId = await fetchSearchByIdOnce(searchUrl);
+  // Cold-start mitigation: the first request from a fresh datacenter IP gets
+  // a stripped HTML without `initialReduxState.search.byId`. The first response
+  // also sets the session cookie, so the retry now lands hydrated.
+  if (Object.keys(byId).length === 0) {
+    byId = await fetchSearchByIdOnce(searchUrl);
   }
 
   const products: KpProduct[] = Object.entries(byId).map(([pid, raw]) =>
     pickProduct(raw, pid),
   );
-
   return { products, searchUrl };
+}
+
+async function fetchAdNodeOnce(url: string): Promise<unknown> {
+  const html = await fetchHtml(url);
+  const nextData = parseNextData(html);
+  return getAdDetail(nextData, url);
 }
 
 export async function fetchListing(url: string): Promise<KpListing> {
@@ -319,9 +356,11 @@ export async function fetchListing(url: string): Promise<KpListing> {
       `URL must be a kupujemprodajem.com listing; got: ${url}`,
     );
   }
-  const html = await fetchHtml(url);
-  const nextData = parseNextData(html);
-  const adNode = getAdDetail(nextData, url);
+  let adNode = await fetchAdNodeOnce(url);
+  // Same cold-start mitigation as searchProducts (see cookie jar comment).
+  if (adNode === undefined) {
+    adNode = await fetchAdNodeOnce(url);
+  }
   if (adNode === undefined) {
     throw new Error("Could not locate ad detail in __NEXT_DATA__");
   }
