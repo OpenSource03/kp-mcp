@@ -74,16 +74,10 @@ export async function fetchHtml(url: string): Promise<string> {
   if (cookie) headers["Cookie"] = cookie;
   const res = await fetch(url, { headers, redirect: "follow" });
   ingestSetCookie(res.headers);
-  const html = await res.text();
-  process.stderr.write(
-    `[kp-fetch] url=${url} status=${res.status} sentCookie=${cookie ? "y" : "n"} ` +
-    `htmlLen=${html.length} hasNextData=${html.includes('id="__NEXT_DATA__"')} ` +
-    `jarKeys=${[...cookieJar.keys()].join(",")} sample=${JSON.stringify(html.slice(0,160))}\n`,
-  );
   if (!res.ok) {
     throw new Error(`KP fetch failed: ${res.status} ${res.statusText} for ${url}`);
   }
-  return html;
+  return await res.text();
 }
 
 /**
@@ -236,10 +230,10 @@ function thumbnailUrl(fullUrl: string): string {
  * repeated fetches when the same listing shows up across queries.
  */
 const dataUrlCache = new Map<string, string>();
-// Cap each thumbnail conservatively. With `limit=10` (default), a search
-// response stays under ~250 KB total once base64 expansion (×1.33) is applied
-// — well within claude.ai's tool-result size budget.
-const MAX_INLINE_BYTES = 18_000;
+// Per-thumbnail cap. 25 KB raw → ~33 KB base64. With default limit=10 a search
+// response stays under ~340 KB total; at limit=20 it stays under ~700 KB.
+// claude.ai web's tool-result cap is ~1 MB-ish, so this leaves headroom.
+const MAX_INLINE_BYTES = 25_000;
 const INLINE_TIMEOUT_MS = 4_000;
 
 async function inlineImage(url: string): Promise<string> {
