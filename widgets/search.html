@@ -1,9 +1,6 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap">
 <style>
   /* ---- KP brand tokens (mirrored from kupujemprodajem.com CSS) ---- */
   :root {
@@ -198,16 +195,18 @@
 
   <script>/*__EXT_APPS_BUNDLE__*/</script>
   <script type="module">
-    const { App, applyHostStyleVariables } = globalThis.ExtApps;
+    const { App } = globalThis.ExtApps;
     const app = new App({ name: "kp-search", version: "0.1.0" }, {}, { autoResize: true });
 
     const root = document.getElementById("root");
     const header = document.getElementById("header");
 
     function applyTheme() {
+      // claude.ai web's `hostContext` shape breaks `applyHostStyleVariables`
+      // (TypeError on `.setProperty`). Just toggle the `dark` class — our CSS
+      // vars handle the rest.
       const ctx = app.getHostContext?.() ?? {};
       document.documentElement.classList.toggle("dark", ctx.theme === "dark");
-      applyHostStyleVariables?.(ctx, { prefix: "mcp-host" });
     }
 
     function escapeHtml(s) {

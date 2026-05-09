@@ -47,15 +47,10 @@ const FetchListingInput = {
     .describe("Full URL to a single KP ad page."),
 };
 
-// CSP allowlist for the iframe sandbox:
-//  - KP image CDN — without this, <img src> for listing thumbnails is blocked.
-//  - Google Fonts — to render PT Sans (the same font kupujemprodajem.com uses).
-//    If the host blocks fonts, the widget falls back to the system font stack.
-const KP_RESOURCE_DOMAINS = [
-  "https://images.kupujemprodajem.com",
-  "https://fonts.googleapis.com",
-  "https://fonts.gstatic.com",
-];
+// CSP allowlist for hosts that honor it (Claude Desktop). claude.ai web
+// applies its own stricter `img-src 'self' data: blob:` regardless, so we also
+// pre-inline images as data: URLs server-side — works in both worlds.
+const KP_RESOURCE_DOMAINS = ["https://images.kupujemprodajem.com"];
 
 function summarizeSearch(products: KpProduct[], searchUrl: string): string {
   if (products.length === 0) {

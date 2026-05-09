@@ -208,6 +208,95 @@ function pickImage(raw: unknown): string {
   return url;
 }
 
+/**
+ * Rewrite a full-size KP image URL to its 300×300 thumbnail variant.
+ *
+ *   .../oglasi/9/89/123993899/123993899_xyz.jpg
+ *   →
+ *   .../oglasi/9/89/123993899/tmb-300x300-123993899_xyz.jpg
+ */
+function thumbnailUrl(fullUrl: string): string {
+  const slash = fullUrl.lastIndexOf("/");
+  if (slash <= 0) return fullUrl;
+  const dir = fullUrl.slice(0, slash + 1);
+  const file = fullUrl.slice(slash + 1);
+  if (file.startsWith("tmb-")) return fullUrl;
+  return `${dir}tmb-300x300-${file}`;
+}
+
+/**
+ * In-memory cache of image data URLs (per server lifetime). KP thumbnails are
+ * 5–15 KB each, capped to ~200 KB total per typical search. Caching dedupes
+ * repeated fetches when the same listing shows up across queries.
+ */
+const dataUrlCache = new Map<string, string>();
+const MAX_INLINE_BYTES = 60_000;
+const INLINE_TIMEOUT_MS = 4_000;
+
+async function inlineImage(url: string): Promise<string> {
+  if (!url) return "";
+  const cached = dataUrlCache.get(url);
+  if (cached !== undefined) return cached;
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), INLINE_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": BROWSER_HEADERS["User-Agent"] ?? "" },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      dataUrlCache.set(url, "");
+      return "";
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > MAX_INLINE_BYTES) {
+      dataUrlCache.set(url, "");
+      return "";
+    }
+    const mime = res.headers.get("content-type") || "image/jpeg";
+    const dataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+    dataUrlCache.set(url, dataUrl);
+    return dataUrl;
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Rewrite every product/listing image URL to an inlined `data:` URL.
+ *
+ * claude.ai's web client enforces a strict iframe CSP (`img-src 'self' data:
+ * blob:`) and ignores the MCP App spec's `csp.resourceDomains`. Inlining is
+ * the only way images render there. Claude Desktop honors the allowlist and
+ * doesn't strictly need this, but inlining everywhere keeps behavior uniform.
+ */
+async function inlineProductImages<T extends { image: string }>(
+  products: T[],
+): Promise<void> {
+  await Promise.all(
+    products.map(async (p) => {
+      if (!p.image) return;
+      const dataUrl = await inlineImage(thumbnailUrl(p.image));
+      if (dataUrl) p.image = dataUrl;
+      else p.image = ""; // CSP would block the bare URL anyway — nuke it.
+    }),
+  );
+}
+
+async function inlineListingPhotos(listing: KpListing): Promise<void> {
+  // Inline only the first 6 to cap payload — Claude rarely needs more on first read.
+  const photoUrls = listing.photos.slice(0, 6);
+  const inlined = await Promise.all(photoUrls.map((url) => inlineImage(thumbnailUrl(url))));
+  listing.photos = inlined.filter((u) => u.length > 0);
+  if (listing.image) {
+    const heroData = await inlineImage(thumbnailUrl(listing.image));
+    listing.image = heroData;
+  }
+}
+
 function pickProduct(raw: unknown, fallbackId?: string): KpProduct {
   const p: UnknownRecord = isRecord(raw) ? raw : {};
   const idValue = p.id !== undefined ? num(p.id) : num(fallbackId);
@@ -341,6 +430,7 @@ export async function searchProducts(params: KpSearchParams): Promise<{
   const products: KpProduct[] = Object.entries(byId).map(([pid, raw]) =>
     pickProduct(raw, pid),
   );
+  await inlineProductImages(products);
   return { products, searchUrl };
 }
 
@@ -364,7 +454,9 @@ export async function fetchListing(url: string): Promise<KpListing> {
   if (adNode === undefined) {
     throw new Error("Could not locate ad detail in __NEXT_DATA__");
   }
-  return pickListing(adNode);
+  const listing = pickListing(adNode);
+  await inlineListingPhotos(listing);
+  return listing;
 }
 
 /** Re-export for tool input validation. */
