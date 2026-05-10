@@ -26,31 +26,44 @@ Najlakši način — koristi javni endpoint koji se hostuje na infrastrukturi sa
 
 Dodaj kao "Custom Connector" u svoj AI host (claude.ai → Settings → Connectors, Cursor → MCP Servers, itd.). Bez autorizacije.
 
-## Lokalno (stdio)
+## Lokalno (npx, bez instalacije)
 
-Za potpunu kontrolu / offline rad / rad na svojoj IP adresi:
-
-```bash
-git clone https://github.com/OpenSource03/kp-mcp.git
-cd kp-mcp
-pnpm install
-pnpm build
-```
-
-Registracija u Claude Code (project-scoped `.mcp.json`):
+Najlakša lokalna varijanta — bez kloniranja, bez build-a. Treba samo Node 20+:
 
 ```jsonc
+// .mcp.json (Claude Code) ili claude_desktop_config.json
 {
   "mcpServers": {
     "kp": {
-      "command": "node",
-      "args": ["/absolute/path/to/kp-mcp/dist/stdio.js"]
+      "command": "npx",
+      "args": ["-y", "kp-mcp"]
     }
   }
 }
 ```
 
-Za Claude Desktop dodaj isti blok u `claude_desktop_config.json`. Za druge MCP klijente — bilo šta što izvrši `node dist/stdio.js` i komunicira preko stdin/stdout-a.
+Za Cursor / Continue / Cline / Windsurf / Zed i druge — isti format, samo u njihovom MCP config fajlu. Prvi put `npx` skida paket iz npm-a (~5 sec); kasnije se keširano pokreće.
+
+Direktno iz terminala (za testiranje):
+```bash
+npx -y kp-mcp           # stdio mode
+PORT=3000 npx -y kp-mcp-http   # HTTP mode na portu 3000
+```
+
+## Lokalno (iz git source-a)
+
+Ako želiš da modifikuješ kod:
+
+```bash
+git clone https://github.com/OpenSource03/kp-mcp.git
+cd kp-mcp && pnpm install && pnpm build
+```
+
+Registracija — koristi apsolutni path do `dist/stdio.js`:
+
+```jsonc
+{ "mcpServers": { "kp": { "command": "node", "args": ["/absolute/path/to/kp-mcp/dist/stdio.js"] } } }
+```
 
 ## Self-hosted preko HTTP-a
 

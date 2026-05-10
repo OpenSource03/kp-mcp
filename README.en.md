@@ -26,31 +26,44 @@ Easiest path — use the public endpoint hosted on infrastructure with a Serbian
 
 Add as a "Custom Connector" in your AI host (claude.ai → Settings → Connectors, Cursor → MCP Servers, etc.). No auth.
 
-## Local (stdio)
+## Local (npx, no install)
 
-For full control / offline use / running on your own IP:
-
-```bash
-git clone https://github.com/OpenSource03/kp-mcp.git
-cd kp-mcp
-pnpm install
-pnpm build
-```
-
-Register with Claude Code (project-scoped `.mcp.json`):
+The easiest local option — no clone, no build, just Node 20+:
 
 ```jsonc
+// .mcp.json (Claude Code) or claude_desktop_config.json
 {
   "mcpServers": {
     "kp": {
-      "command": "node",
-      "args": ["/absolute/path/to/kp-mcp/dist/stdio.js"]
+      "command": "npx",
+      "args": ["-y", "kp-mcp"]
     }
   }
 }
 ```
 
-Same block format works for Claude Desktop's `claude_desktop_config.json`. For other MCP clients — anything that can spawn `node dist/stdio.js` and talk over stdin/stdout works.
+Same format works for Cursor / Continue / Cline / Windsurf / Zed — just in their MCP config file. First run pulls the package from npm (~5 s); subsequent runs are cached.
+
+Run directly from a terminal (for testing):
+```bash
+npx -y kp-mcp                  # stdio mode
+PORT=3000 npx -y kp-mcp-http   # HTTP mode on port 3000
+```
+
+## Local (from git source)
+
+If you want to modify the code:
+
+```bash
+git clone https://github.com/OpenSource03/kp-mcp.git
+cd kp-mcp && pnpm install && pnpm build
+```
+
+Register with the absolute path to `dist/stdio.js`:
+
+```jsonc
+{ "mcpServers": { "kp": { "command": "node", "args": ["/absolute/path/to/kp-mcp/dist/stdio.js"] } } }
+```
 
 ## Self-hosted HTTP
 

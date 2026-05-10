@@ -1,9 +1,30 @@
 {
   "name": "kp-mcp",
   "version": "0.1.0",
-  "description": "MCP server for kupujemprodajem.com — search KP listings and fetch listing details from Claude.",
+  "description": "MCP server for kupujemprodajem.com — search and read full listings from any MCP-compatible AI assistant (Claude, ChatGPT, Cursor, Continue, Cline, …).",
   "type": "module",
   "license": "MIT",
+  "author": "OpenSource03",
+  "homepage": "https://github.com/OpenSource03/kp-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenSource03/kp-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OpenSource03/kp-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "kupujemprodajem",
+    "kp",
+    "serbia",
+    "classifieds",
+    "ai",
+    "claude",
+    "cursor",
+    "continue"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -14,10 +35,13 @@
     "kp-mcp-http": "dist/http.js"
   },
   "main": "dist/server.js",
+  "types": "dist/server.d.ts",
   "files": [
     "dist",
     "widgets",
-    "README.md"
+    "README.md",
+    "README.en.md",
+    "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
@@ -26,7 +50,9 @@
     "dev:stdio": "tsx src/stdio.ts",
     "dev:http": "tsx src/http.ts",
     "inspect": "npx @modelcontextprotocol/inspector node dist/stdio.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepare": "test -d node_modules/typescript && tsc || echo 'skip prepare (no tsc available, e.g. when consumer installs)'",
+    "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.7.1",
@@ -39,5 +65,9 @@
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
