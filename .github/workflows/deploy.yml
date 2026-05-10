@@ -1,0 +1,78 @@
+name: Deploy to Coolify
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+# Allow only one deploy at a time per ref; cancel older runs to avoid races.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Coolify (Raspberry Pi)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://kp.osrc.io/mcp
+
+    steps:
+      - name: Mark GitHub deployment as in_progress
+        id: gh_deploy
+        uses: chrnorm/deployment-action@v2
+        with:
+          token: ${{ github.token }}
+          environment: production
+          environment-url: https://kp.osrc.io/mcp
+          description: "Coolify on rpi-home"
+
+      - name: Trigger Coolify redeploy
+        id: redeploy
+        env:
+          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          SERVICE: ${{ secrets.COOLIFY_SERVICE_UUID }}
+        run: |
+          set -e
+          echo "Calling Coolify deploy webhook for service $SERVICE"
+          HTTP=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
+            -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$COOLIFY_URL/api/v1/services/$SERVICE/restart")
+          echo "HTTP $HTTP"
+          cat /tmp/resp.txt
+          test "$HTTP" -ge 200 -a "$HTTP" -lt 300
+
+      - name: Wait for kp-mcp /health to come back
+        run: |
+          set -e
+          for i in $(seq 1 60); do
+            if curl -fsS -m 8 https://kp.osrc.io/health | grep -q '"ok":true'; then
+              echo "✓ healthy on attempt $i"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "✗ never recovered" >&2
+          exit 1
+
+      - name: Mark GitHub deployment success
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.gh_deploy.outputs.deployment_id }}
+          state: success
+          environment-url: https://kp.osrc.io/mcp
+          description: "Live at kp.osrc.io"
+
+      - name: Mark GitHub deployment failure
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: ${{ github.token }}
+          deployment-id: ${{ steps.gh_deploy.outputs.deployment_id }}
+          state: failure
+          description: "Coolify deploy failed — see Action logs"
