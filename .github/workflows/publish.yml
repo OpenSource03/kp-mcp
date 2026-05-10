@@ -27,6 +27,6 @@ jobs:
 
       - run: pnpm build
 
+      # Auth handled by npm Trusted Publisher (OIDC) — no token needed.
+      # The workflow's id-token:write permission proves identity to npm.
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
