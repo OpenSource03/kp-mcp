@@ -18,33 +18,23 @@ jobs:
     name: Production
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The `environment:` block makes GitHub auto-create the Deployment
+    # record with the right status lifecycle (in_progress → success/failure
+    # based on job outcome). No manual deployment-action call needed.
     environment:
       name: production
       url: https://kp.osrc.io/mcp
 
     steps:
-      - name: Mark deployment in_progress
-        id: gh_deploy
-        uses: chrnorm/deployment-action@v2
-        with:
-          token: ${{ github.token }}
-          environment: production
-          environment-url: https://kp.osrc.io/mcp
-
       - name: Wait for new build to roll out
-        env:
-          SHA: ${{ github.sha }}
         run: |
           set -e
-          # Server picks up new commits within ~60s and rolls out via the
-          # registered build pipeline. Poll /health and the version endpoint
-          # until the live version matches this commit's SHA, or time out.
+          # Server polls master and rolls out new commits within ~60s.
+          # Confirm /health is OK and give the rollout time to take effect.
           for i in $(seq 1 60); do
             BODY=$(curl -fsS -m 8 https://kp.osrc.io/health 2>/dev/null || true)
             if echo "$BODY" | grep -q '"ok":true'; then
               echo "[$i] live: $BODY"
-              # Optional version match — soft check: pass once /health is OK
-              # and the wait has been at least 30s (gives the rollout time).
               if [ "$i" -ge 6 ]; then exit 0; fi
             else
               echo "[$i] not ready yet"
@@ -53,22 +43,3 @@ jobs:
           done
           echo "✗ /health never confirmed in time" >&2
           exit 1
-
-      - name: Mark deployment success
-        if: success()
-        uses: chrnorm/deployment-status@v2
-        with:
-          token: ${{ github.token }}
-          deployment-id: ${{ steps.gh_deploy.outputs.deployment_id }}
-          state: success
-          environment-url: https://kp.osrc.io/mcp
-          description: Live at kp.osrc.io
-
-      - name: Mark deployment failure
-        if: failure()
-        uses: chrnorm/deployment-status@v2
-        with:
-          token: ${{ github.token }}
-          deployment-id: ${{ steps.gh_deploy.outputs.deployment_id }}
-          state: failure
-          description: Deploy failed — see Action logs
