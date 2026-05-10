@@ -140,48 +140,80 @@ export function createServer(): McpServer {
         "Search and inspect listings on kupujemprodajem.com (KP), Serbia's largest classifieds.\n" +
         "\n" +
         "## Tools\n" +
+        "- `list_kp_categories` — taxonomy lookup for `categoryId`/`groupId`.\n" +
         "- `search_kp` — keyword + filter search, returns up to ~30 listings.\n" +
         "- `fetch_listing` — full detail for one ad (specs, photos, seller).\n" +
-        "- `list_kp_categories` — taxonomy lookup for `categoryId`/`groupId`.\n" +
         "\n" +
-        "## Workflow\n" +
-        "1. **If the user's request fits a clear KP category** (cars, phones, " +
-        "  graphics cards, real estate, appliances, fashion): call " +
-        "  `list_kp_categories` with `search` set to the category name (in " +
-        "  English or Serbian — both substrings work) to find the right " +
-        "  `categoryId` or `groupId`. Narrowing by group beats keyword filtering " +
-        "  every time — it eliminates parts/accessories that contaminate " +
-        "  keyword searches.\n" +
-        "2. **Search broadly first.** Start with the most distinctive 1–3 words " +
-        "  (model code, brand+model, key Serbian noun). Don't pad with category " +
-        "  words — 'RTX 3090', not 'RTX 3090 graficka karta'.\n" +
-        "3. **Add filters second.** If you still get junk (parts, accessories, " +
-        "  'Kupujem' wanted-to-buy ads): add `priceFrom` + `currency`, or scope " +
-        "  to a `groupId`. If you get too many: add `priceTo` or `condition`.\n" +
-        "4. **Sort thoughtfully.** Default `relevance` is best for browsing. " +
-        "  `price` ascending is great for hunting deals BUT requires a " +
-        "  `priceFrom` floor (or scoping by `groupId`) or you'll get 27€ water " +
-        "  blocks at the top of a GPU search.\n" +
-        "5. **`fetch_listing` is preferred** whenever the user cares about " +
-        "  specifics not visible in search cards: full description, all photos, " +
-        "  seller reputation/verification, exact storage/year/km/fuel for cars, " +
-        "  delivery options. Always fetch before recommending a listing as 'the " +
-        "  best deal'.\n" +
-        "6. **If a title-only search returns 0**, retry with " +
-        "  `keywordsScope: 'description'` once — many sellers bundle multiple " +
-        "  model names in the listing body.\n" +
+        "## ⚠️ MANDATORY FIRST STEP for any product search\n" +
         "\n" +
-        "## What KP returns vs. doesn't\n" +
-        "- Search results carry: title, price, location, image, posted date, " +
-        "  view count, condition, category, group. **No seller info** in search " +
-        "  hits — use `fetch_listing` for username/reviews/verification.\n" +
-        "- Prices come in EUR or RSD; both can appear in the same result set. " +
-        "  Always set `currency` when filtering by price.\n" +
-        "- 'Kupujem' priceText means 'I'm buying this' (wanted-to-buy ad) — " +
-        "  filter these out via `priceFrom` or scope by `groupId`.\n" +
+        "**ALWAYS call `list_kp_categories` BEFORE `search_kp`** for ANY of " +
+        "these intents (which is essentially every real product query):\n" +
         "\n" +
-        "All tools render interactive UI in hosts that support MCP Apps " +
-        "(claude.ai, Claude Desktop) and degrade to plain text elsewhere.",
+        "  • Vehicles (cars, motorcycles, bicycles)\n" +
+        "  • Phones, laptops, tablets, computer parts (GPU/CPU/RAM/SSD)\n" +
+        "  • TVs, monitors, audio gear, gaming consoles\n" +
+        "  • Real estate (apartments, houses, plots)\n" +
+        "  • Appliances (fridges, washers, dishwashers, AC)\n" +
+        "  • Fashion (clothing, shoes, watches, bags)\n" +
+        "  • Sports gear, instruments, books, baby gear, furniture\n" +
+        "  • Anything else that has a clear KP category\n" +
+        "\n" +
+        "**Why this is required, not optional:** keyword-only `search_kp` " +
+        "consistently returns parts, accessories, 'Kupujem' wanted-to-buy ads, " +
+        "and unrelated junk at the top of price-sorted results. A `groupId` " +
+        "(e.g. 102 = 'Grafičke kartice', 489 = 'Apple iPhone', 152 = " +
+        "'Oldtajmeri') eliminates ~90% of that junk in one parameter.\n" +
+        "\n" +
+        "**Calling pattern:**\n" +
+        "```\n" +
+        "// Step 1 — find the right group:\n" +
+        "list_kp_categories({ search: \"<category word, English or Serbian>\" })\n" +
+        "// → returns matching categories + groups; pick the most specific groupId\n" +
+        "\n" +
+        "// Step 2 — search WITH that groupId:\n" +
+        "search_kp({ query: \"<distinctive keywords>\", groupId: <chosen id>, ... })\n" +
+        "```\n" +
+        "\n" +
+        "Skip `list_kp_categories` only for: meta-queries about KP itself, when " +
+        "the user pasted a specific listing URL (use `fetch_listing` directly), " +
+        "or when you're doing a 2nd refinement search on already-narrowed results.\n" +
+        "\n" +
+        "## Query rules for `search_kp`\n" +
+        "1. **Keep query to 1–3 distinctive words.** Model codes are unique " +
+        "  on KP — 'RTX 3090', not 'RTX 3090 graficka karta'. Don't pad with " +
+        "  category nouns ('telefon', 'auto', 'aparat'). If you scoped by " +
+        "  `groupId`, the category is already implied — make the query even " +
+        "  shorter.\n" +
+        "2. **Don't add manufacturer unless the user asked.**\n" +
+        "3. **No years, storage sizes, or specs in query.** Few sellers write " +
+        "  '2018' or '256GB' in the title — verify these via `fetch_listing`.\n" +
+        "4. **Always pair `priceFrom`/`priceTo` with `currency`** ('eur' or 'rsd').\n" +
+        "5. **`orderBy: 'price'` requires a `priceFrom` floor OR a `groupId`** " +
+        "  — otherwise water blocks rank #1 in any GPU search.\n" +
+        "6. **0 results → drop a word** from the query, then try " +
+        "  `keywordsScope: 'description'`. Never add more words.\n" +
+        "7. **Diacritics don't matter.** 'frizider' ≡ 'frižider'.\n" +
+        "\n" +
+        "## When to call `fetch_listing` (preferred path)\n" +
+        "Whenever the user cares about specifics not in search cards:\n" +
+        "  • Storage / RAM / CPU on phones/laptops\n" +
+        "  • Year / km / fuel / engine size on cars\n" +
+        "  • Seller reputation, reviews, verification\n" +
+        "  • Whether ad is real-sale vs 'Kupujem' (wanted-to-buy)\n" +
+        "  • Photos beyond the search thumbnail\n" +
+        "  • Delivery / pickup options\n" +
+        "Always fetch before recommending any listing as 'the best deal'.\n" +
+        "\n" +
+        "## Data shape notes\n" +
+        "- Search hits carry title, price, location, image, posted date, view " +
+        "  count, condition, category/group. No seller info — that's " +
+        "  `fetch_listing` only.\n" +
+        "- Prices mix EUR + RSD in one result set. Always set `currency` " +
+        "  when filtering.\n" +
+        "- 'Kupujem' priceText = wanted-to-buy ad. Filter out via `priceFrom` " +
+        "  or scope by `groupId`.\n" +
+        "\n" +
+        "All tools render interactive UI in hosts that support MCP Apps.",
     },
   );
 
@@ -191,40 +223,62 @@ export function createServer(): McpServer {
     {
       title: "Search KP",
       description:
-        "Search kupujemprodajem.com (KP), Serbia's largest classifieds. Returns " +
-        "a list of listings with price, location, thumbnail, and ad URL.\n" +
+        "Search kupujemprodajem.com (KP), Serbia's largest classifieds.\n" +
         "\n" +
-        "**Query rules** (read these — bad queries are the #1 cause of empty results):\n" +
-        "• Use the most distinctive 1–3 words. Model codes and brand+model are " +
-        "  unique enough on KP — DO NOT pad with category nouns:\n" +
+        "## ⚠️ MANDATORY: call `list_kp_categories` FIRST\n" +
+        "\n" +
+        "Before calling `search_kp` for any real product query (cars, phones, " +
+        "GPUs, real estate, appliances, fashion, etc.), **first call** " +
+        "`list_kp_categories({ search: '<category-word>' })` to find the right " +
+        "`groupId`, then pass that `groupId` here. Without it, price-sorted " +
+        "GPU searches return 27€ water blocks at the top, phone searches " +
+        "return cases and chargers, etc. Skip this step ONLY for refinement " +
+        "passes on already-narrowed results.\n" +
+        "\n" +
+        "**Correct calling pattern:**\n" +
+        "```\n" +
+        "// 1. Find the group:\n" +
+        "list_kp_categories({ search: 'graphics' })\n" +
+        "// → groupId 102 = 'Grafičke kartice'\n" +
+        "\n" +
+        "// 2. Then search:\n" +
+        "search_kp({ query: 'RTX 3090', groupId: 102, orderBy: 'price', limit: 10 })\n" +
+        "```\n" +
+        "\n" +
+        "## Query rules\n" +
+        "Bad queries are the #1 cause of empty/junk results.\n" +
+        "\n" +
+        "• **Keep `query` to 1–3 distinctive words.** Model codes are unique " +
+        "  on KP — DO NOT pad with category nouns:\n" +
         "    ✓ 'RTX 3090'           ✗ 'RTX 3090 graficka karta'\n" +
         "    ✓ 'iPhone 13'          ✗ 'iPhone 13 telefon'\n" +
         "    ✓ 'Passat B8'          ✗ 'Passat B8 auto polovni'\n" +
         "    ✓ 'Ryzen 7 5800X'      ✗ 'AMD Ryzen 7 5800X procesor'\n" +
         "    ✓ 'frižider'           ✗ 'kućni frižider aparat'\n" +
-        "• Add manufacturer ONLY when the user specified one. Don't guess " +
+        "  When you've already scoped by `groupId`, make the query EVEN shorter.\n" +
+        "• **Add manufacturer only when the user specified one.** Don't guess " +
         "  'ASUS RTX 3090' if the user just said 'RTX 3090'.\n" +
-        "• Don't include years, storage sizes, or detailed specs in the query " +
-        "  ('BMW 320d 2018' returns 0; 'BMW 320d' returns real cars). Use " +
-        "  price filters to narrow and `fetch_listing` to verify.\n" +
-        "• Prefer Serbian for everyday items (real estate, appliances, clothes). " +
-        "  English fine for branded electronics/cars. Diacritics are optional.\n" +
-        "• If you get 0 results, *remove* a word — never add more.\n" +
+        "• **No years, storage sizes, or specs in `query`.** ('BMW 320d 2018' " +
+        "  returns 0; 'BMW 320d' returns real cars.) Verify these via " +
+        "  `fetch_listing`.\n" +
+        "• **Prefer Serbian** for everyday items (real estate, appliances, " +
+        "  clothes). English fine for branded electronics/cars. Diacritics " +
+        "  are optional ('frizider' ≡ 'frižider').\n" +
+        "• **If you get 0 results, REMOVE a word** — never add more.\n" +
         "\n" +
-        "**Filter rules:**\n" +
+        "## Filter rules\n" +
         "• Always pair `priceFrom`/`priceTo` with `currency` ('eur' or 'rsd').\n" +
-        "• When using `orderBy: 'price'`, set `priceFrom` or you'll get " +
-        "  parts/exchange/wanted-to-buy ads at the top.\n" +
-        "• Skip `categoryId` — KP's IDs aren't intuitive and wrong values " +
-        "  return 0.\n" +
+        "• `orderBy: 'price'` requires a `priceFrom` floor OR a `groupId` — " +
+        "  otherwise water blocks/exchange/wanted-to-buy ads rank #1.\n" +
+        "• `groupId` alone is sufficient — you don't need to set `categoryId`.\n" +
         "\n" +
-        "**Empty-result fallbacks** (try in order):\n" +
-        "1. Drop padding words from the query.\n" +
+        "## Empty-result fallbacks (try in order)\n" +
+        "1. Drop a word from `query`.\n" +
         "2. Re-run with `keywordsScope: 'description'`.\n" +
         "3. Try the Serbian or English equivalent of the noun.\n" +
         "\n" +
-        "Renders an interactive card grid in hosts that support MCP Apps. " +
-        "Search results don't carry seller info — call `fetch_listing` for that.",
+        "Renders an interactive card grid. Search results don't carry seller " +
+        "info — call `fetch_listing` for username/reviews/verification.",
       annotations: { title: "Search KP", readOnlyHint: true, openWorldHint: true },
       inputSchema: SearchInput,
       _meta: { ui: { resourceUri: WIDGET_URIS.search } },
@@ -338,22 +392,45 @@ export function createServer(): McpServer {
     {
       title: "List KP Categories",
       description:
-        "Look up KP's category and group IDs (the taxonomy used by " +
-        "`search_kp`'s `categoryId` and `groupId` filters). KP has 88 " +
-        "top-level categories and ~1170 groups underneath them.\n" +
+        "Look up KP's category and group IDs. **Call this FIRST before " +
+        "`search_kp`** for any real product query — it's the difference " +
+        "between getting actual phones and getting phone cases at the top " +
+        "of a price-sorted search.\n" +
         "\n" +
-        "Behavior:\n" +
-        "• No args → returns all 88 categories as `{id, name}` pairs.\n" +
-        "• `categoryId` → returns just that category's groups: " +
-        "  `{id, name, groups: [{id, name}, …]}`.\n" +
-        "• `search` (substring, case-insensitive) → fuzzy-finds matching " +
-        "  categories AND groups across the whole tree. Combine with no " +
-        "  `categoryId` to discover the right ID for a user query.\n" +
+        "KP has 88 top-level categories and ~1170 groups underneath them.\n" +
         "\n" +
-        "Use this whenever the user's request fits a clear KP category " +
-        "(cars, phones, real estate, appliances, fashion, etc.) — narrowing " +
-        "via `groupId` produces dramatically better search hits than keyword " +
-        "matching alone.",
+        "## Modes\n" +
+        "• **`search: '<word>'`** (most common — use this) — diacritic- and " +
+        "  case-insensitive substring match across all category and group " +
+        "  names in Serbian and English. Returns matching categories AND " +
+        "  groups so you can pick the most specific `groupId`.\n" +
+        "• **`categoryId: <n>`** — drill into a category, list all its groups.\n" +
+        "• **No args** — returns all 88 top-level categories with group counts.\n" +
+        "\n" +
+        "## Quick mapping cheat sheet (verified Sep 2026 — re-search if unsure)\n" +
+        "  Cars              → categoryId 2013 (Automobili)\n" +
+        "  Phones (all)      → categoryId 23   (Mobilni telefoni)\n" +
+        "  iPhone only       → groupId    489  (Apple iPhone)\n" +
+        "  Computer parts    → categoryId 10   (Kompjuteri | Desktop)\n" +
+        "  GPU only          → groupId    102  (Grafičke kartice)\n" +
+        "  Laptops/tablets   → categoryId 1221\n" +
+        "  Appliances        → categoryId 15   (Bela tehnika i kućni aparati)\n" +
+        "  Fridges only      → groupId    190  (Frižideri)\n" +
+        "  Washing machines  → groupId    188  (Veš mašine)\n" +
+        "  Dishwashers       → groupId    193  (Mašine za pranje sudova)\n" +
+        "  Audio gear        → categoryId 1\n" +
+        "  Headphones        → groupId    616  (Slušalice)\n" +
+        "  Real estate sale  → categoryId 2821 (Nekretnine | Prodaja)\n" +
+        "  Real estate rent  → categoryId 2850 (Nekretnine | Izdavanje)\n" +
+        "  Motorcycles       → categoryId 21\n" +
+        "  Men's shoes       → groupId    1078\n" +
+        "  Women's shoes     → groupId    1077\n" +
+        "  Watches           → groupId    464  (in Uređenje kuće)\n" +
+        "\n" +
+        "## When to skip\n" +
+        "Only when the user explicitly wants a cross-category search, asks a " +
+        "meta-question about KP itself, or you're refining an already-narrowed " +
+        "search.",
       annotations: { title: "List KP Categories", readOnlyHint: true, openWorldHint: false },
       inputSchema: {
         categoryId: z.number().int().positive().optional()
