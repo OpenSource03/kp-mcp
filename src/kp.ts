@@ -5,6 +5,7 @@ import {
   KpSearchParams,
   KpUser,
 } from "./types.js";
+import { categoryIdForGroup } from "./categories.js";
 
 const KP_ORIGIN = "https://www.kupujemprodajem.com";
 
@@ -39,7 +40,13 @@ export function buildSearchUrl(params: KpSearchParams): string {
   if (params.condition) {
     for (const c of params.condition) q.append("condition", c);
   }
-  if (params.categoryId !== undefined) q.set("categoryId", String(params.categoryId));
+  // KP's URL convention requires categoryId alongside groupId. If the caller
+  // gave us a groupId without a categoryId, look up the parent and add it.
+  let effectiveCategoryId = params.categoryId;
+  if (params.groupId !== undefined && effectiveCategoryId === undefined) {
+    effectiveCategoryId = categoryIdForGroup(params.groupId);
+  }
+  if (effectiveCategoryId !== undefined) q.set("categoryId", String(effectiveCategoryId));
   if (params.groupId !== undefined) q.set("groupId", String(params.groupId));
   if (params.orderBy) q.set("order", params.orderBy);
   if (params.page !== undefined) q.set("page", String(params.page));
