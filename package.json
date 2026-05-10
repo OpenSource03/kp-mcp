@@ -51,7 +51,6 @@
     "dev:http": "tsx src/http.ts",
     "inspect": "npx @modelcontextprotocol/inspector node dist/stdio.js",
     "typecheck": "tsc --noEmit",
-    "prepare": "test -d node_modules/typescript && tsc || echo 'skip prepare (no tsc available, e.g. when consumer installs)'",
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {

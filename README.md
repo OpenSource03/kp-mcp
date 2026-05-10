@@ -3,6 +3,11 @@
 🇷🇸 **Srpski** · [🇬🇧 English](README.en.md)
 
 [![Deploy](https://github.com/OpenSource03/kp-mcp/actions/workflows/deploy.yml/badge.svg)](https://github.com/OpenSource03/kp-mcp/actions/workflows/deploy.yml)
+[![npm version](https://img.shields.io/npm/v/@opensource03/kp-mcp?color=cb3837&logo=npm)](https://www.npmjs.com/package/@opensource03/kp-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/@opensource03/kp-mcp?color=cb3837)](https://www.npmjs.com/package/@opensource03/kp-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen)](https://nodejs.org)
+[![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io)
 
 MCP (Model Context Protocol) server za [kupujemprodajem.com](https://www.kupujemprodajem.com) — najveći oglasnik u Srbiji. Omogućava bilo kom AI asistentu koji podržava MCP (Claude, ChatGPT, Cursor, Continue, Cline, Windsurf, Zed i drugi) da pretražuje KP oglase i čita pune detalje pojedinačnih oglasa.
 
