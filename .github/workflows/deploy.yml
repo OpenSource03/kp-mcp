@@ -1,18 +1,17 @@
-name: Deploy to Coolify
+name: Deploy
 
 on:
   push:
     branches: [master]
   workflow_dispatch:
 
-# Allow only one deploy at a time per ref; cancel older runs to avoid races.
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Coolify (Raspberry Pi)
+    name: Production
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -20,35 +19,32 @@ jobs:
       url: https://kp.osrc.io/mcp
 
     steps:
-      - name: Mark GitHub deployment as in_progress
+      - name: Mark deployment in_progress
         id: gh_deploy
         uses: chrnorm/deployment-action@v2
         with:
           token: ${{ github.token }}
           environment: production
           environment-url: https://kp.osrc.io/mcp
-          description: "Coolify on rpi-home"
 
-      - name: Trigger Coolify redeploy
-        id: redeploy
+      - name: Trigger deploy
         env:
-          COOLIFY_URL: ${{ secrets.COOLIFY_URL }}
-          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          SERVICE: ${{ secrets.COOLIFY_SERVICE_UUID }}
+          DEPLOY_URL: ${{ secrets.COOLIFY_URL }}
+          DEPLOY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APP_UUID: ${{ secrets.COOLIFY_SERVICE_UUID }}
         run: |
           set -e
-          echo "Calling Coolify deploy webhook for service $SERVICE"
           HTTP=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
-            -X POST -H "Authorization: Bearer $COOLIFY_TOKEN" \
-            "$COOLIFY_URL/api/v1/services/$SERVICE/restart")
+            -X POST -H "Authorization: Bearer $DEPLOY_TOKEN" \
+            "$DEPLOY_URL/api/v1/applications/$APP_UUID/start")
           echo "HTTP $HTTP"
           cat /tmp/resp.txt
           test "$HTTP" -ge 200 -a "$HTTP" -lt 300
 
-      - name: Wait for kp-mcp /health to come back
+      - name: Wait for /health
         run: |
           set -e
-          for i in $(seq 1 60); do
+          for i in $(seq 1 90); do
             if curl -fsS -m 8 https://kp.osrc.io/health | grep -q '"ok":true'; then
               echo "✓ healthy on attempt $i"
               exit 0
@@ -58,7 +54,7 @@ jobs:
           echo "✗ never recovered" >&2
           exit 1
 
-      - name: Mark GitHub deployment success
+      - name: Mark deployment success
         if: success()
         uses: chrnorm/deployment-status@v2
         with:
@@ -66,13 +62,13 @@ jobs:
           deployment-id: ${{ steps.gh_deploy.outputs.deployment_id }}
           state: success
           environment-url: https://kp.osrc.io/mcp
-          description: "Live at kp.osrc.io"
+          description: Live at kp.osrc.io
 
-      - name: Mark GitHub deployment failure
+      - name: Mark deployment failure
         if: failure()
         uses: chrnorm/deployment-status@v2
         with:
           token: ${{ github.token }}
           deployment-id: ${{ steps.gh_deploy.outputs.deployment_id }}
           state: failure
-          description: "Coolify deploy failed — see Action logs"
+          description: Deploy failed — see Action logs
