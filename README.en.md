@@ -36,7 +36,7 @@ The easiest local option — no clone, no build, just Node 20+:
   "mcpServers": {
     "kp": {
       "command": "npx",
-      "args": ["-y", "kp-mcp"]
+      "args": ["-y", "@opensource03/kp-mcp"]
     }
   }
 }
@@ -46,8 +46,8 @@ Same format works for Cursor / Continue / Cline / Windsurf / Zed — just in the
 
 Run directly from a terminal (for testing):
 ```bash
-npx -y kp-mcp                  # stdio mode
-PORT=3000 npx -y kp-mcp-http   # HTTP mode on port 3000
+npx -y @opensource03/kp-mcp                  # stdio mode
+PORT=3000 npx -y -p @opensource03/kp-mcp kp-mcp-http   # HTTP mode on port 3000
 ```
 
 ## Local (from git source)

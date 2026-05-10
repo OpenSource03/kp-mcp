@@ -1,5 +1,5 @@
 {
-  "name": "kp-mcp",
+  "name": "@opensource03/kp-mcp",
   "version": "0.1.0",
   "description": "MCP server for kupujemprodajem.com — search and read full listings from any MCP-compatible AI assistant (Claude, ChatGPT, Cursor, Continue, Cline, …).",
   "type": "module",

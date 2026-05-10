@@ -36,7 +36,7 @@ Najlakša lokalna varijanta — bez kloniranja, bez build-a. Treba samo Node 20+
   "mcpServers": {
     "kp": {
       "command": "npx",
-      "args": ["-y", "kp-mcp"]
+      "args": ["-y", "@opensource03/kp-mcp"]
     }
   }
 }
@@ -46,8 +46,8 @@ Za Cursor / Continue / Cline / Windsurf / Zed i druge — isti format, samo u nj
 
 Direktno iz terminala (za testiranje):
 ```bash
-npx -y kp-mcp           # stdio mode
-PORT=3000 npx -y kp-mcp-http   # HTTP mode na portu 3000
+npx -y @opensource03/kp-mcp           # stdio mode
+PORT=3000 npx -y -p @opensource03/kp-mcp kp-mcp-http   # HTTP mode na portu 3000
 ```
 
 ## Lokalno (iz git source-a)
