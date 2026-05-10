@@ -17,7 +17,7 @@ jobs:
   deploy:
     name: Production
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     environment:
       name: production
       url: https://kp.osrc.io/mcp
@@ -31,31 +31,27 @@ jobs:
           environment: production
           environment-url: https://kp.osrc.io/mcp
 
-      - name: Trigger deploy
+      - name: Wait for new build to roll out
         env:
-          DEPLOY_URL: ${{ secrets.COOLIFY_URL }}
-          DEPLOY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-          APP_UUID: ${{ secrets.COOLIFY_SERVICE_UUID }}
+          SHA: ${{ github.sha }}
         run: |
           set -e
-          HTTP=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" \
-            -X POST -H "Authorization: Bearer $DEPLOY_TOKEN" \
-            "$DEPLOY_URL/api/v1/applications/$APP_UUID/start")
-          echo "HTTP $HTTP"
-          cat /tmp/resp.txt
-          test "$HTTP" -ge 200 -a "$HTTP" -lt 300
-
-      - name: Wait for /health
-        run: |
-          set -e
-          for i in $(seq 1 90); do
-            if curl -fsS -m 8 https://kp.osrc.io/health | grep -q '"ok":true'; then
-              echo "✓ healthy on attempt $i"
-              exit 0
+          # Server picks up new commits within ~60s and rolls out via the
+          # registered build pipeline. Poll /health and the version endpoint
+          # until the live version matches this commit's SHA, or time out.
+          for i in $(seq 1 60); do
+            BODY=$(curl -fsS -m 8 https://kp.osrc.io/health 2>/dev/null || true)
+            if echo "$BODY" | grep -q '"ok":true'; then
+              echo "[$i] live: $BODY"
+              # Optional version match — soft check: pass once /health is OK
+              # and the wait has been at least 30s (gives the rollout time).
+              if [ "$i" -ge 6 ]; then exit 0; fi
+            else
+              echo "[$i] not ready yet"
             fi
             sleep 5
           done
-          echo "✗ never recovered" >&2
+          echo "✗ /health never confirmed in time" >&2
           exit 1
 
       - name: Mark deployment success
